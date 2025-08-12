@@ -1,1 +1,55 @@
+// ===== Mobile audio bootstrap (iOS-safe) =====
+(function(){
+  var booted = false;
 
+  function resumeAudio(){
+    if (booted) return;
+    booted = true;
+    try {
+      // Ensure / resume WebAudio
+      if (music && typeof music.ensureInit === 'function') music.ensureInit();
+      if (music && music.ctx && music.ctx.state === 'suspended') {
+        try { music.ctx.resume(); } catch(_) {}
+      }
+
+      // Prefer embedded/uploaded custom track
+      if (customAudio && customAudio.audio) {
+        try { customAudio.audio.setAttribute('playsinline',''); } catch(_) {}
+        var p = customAudio.audio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function(){
+            if (HUD && HUD.music) HUD.music.textContent = 'MUSIC: ON (CUSTOM)';
+          }).catch(function(e){
+            console.log('Audio play blocked:', e);
+            booted = false; // allow retry
+          });
+        } else {
+          if (HUD && HUD.music) HUD.music.textContent = 'MUSIC: ON (CUSTOM)';
+        }
+      } else if (music && typeof music.toggle === 'function') {
+        music.toggle(true);
+        if (HUD && HUD.music) HUD.music.textContent = 'MUSIC: ON';
+      }
+    } catch (e) {
+      console.log('resumeAudio error', e);
+      booted = false; // allow retry
+      var hint = document.getElementById('hint');
+      if (hint) hint.textContent = 'Tap anywhere to enable sound (iOS policy)';
+    }
+  }
+
+  // Hook Start button
+  var startBtn = document.getElementById('startBtn');
+  if (startBtn) startBtn.addEventListener('click', resumeAudio, { once:true });
+
+  // Fallback: first touch/press/keydown anywhere
+  window.addEventListener('pointerdown', resumeAudio, { once:true });
+  window.addEventListener('keydown', resumeAudio, { once:true });
+
+  // Resume context on returning to tab
+  window.addEventListener('focus', function(){
+    if (music && music.ctx && music.ctx.state === 'suspended') {
+      try { music.ctx.resume(); } catch(_) {}
+    }
+  });
+})();
